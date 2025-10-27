@@ -1,5 +1,5 @@
 import { sceneState, addAssetToScene, getAssetById, updateAsset, removeAsset, markAsDirty, isStateDirty, clearDirtyFlag } from './state.js';
-import { initializeCanvas, redrawCanvas, getAssetAtPos, getSelectedAsset, clearAssetImages } from './editor.js';
+import { initializeCanvas, redrawCanvas, getAssetAtPos, getSelectedAsset, clearAssetImages, setTool } from './editor.js';
 import { generateImage } from './api.js';
 
 const loadingOverlay = document.getElementById('loading-overlay');
@@ -12,6 +12,7 @@ const assetLibrary = document.getElementById('asset-library');
 const propertiesPanel = document.getElementById('properties-panel-content');
 
 let lastGeneratedAsset = null;
+let touchDragGhost = null;
 
 function showLoader() {
     loadingOverlay.style.display = 'flex';
@@ -95,6 +96,7 @@ function selectLibraryAsset(element) {
             type: element.dataset.assetType,
             prompt: element.dataset.assetPrompt
         };
+        setTool('add'); // Automatically switch to add tool on mobile for tap-to-place
     } else {
         lastGeneratedAsset = null;
     }
@@ -292,6 +294,81 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             e.dataTransfer.setData('application/json', JSON.stringify(assetData));
             selectLibraryAsset(e.target); // Also select it visually
+        }
+    });
+
+    // --- Mobile Tap-and-Drag from Library ---
+    let isDraggingFromLibrary = false;
+    let dragData = null;
+
+    assetLibrary.addEventListener('touchstart', (e) => {
+        if (e.target.classList.contains('library-asset')) {
+            e.preventDefault();
+            isDraggingFromLibrary = true;
+            
+            const targetImg = e.target;
+            dragData = {
+                url: targetImg.dataset.assetUrl,
+                type: targetImg.dataset.assetType,
+                prompt: targetImg.dataset.assetPrompt,
+            };
+            
+            // Create ghost element
+            touchDragGhost = document.createElement('img');
+            touchDragGhost.src = targetImg.src;
+            touchDragGhost.style.position = 'fixed';
+            touchDragGhost.style.width = '60px';
+            touchDragGhost.style.height = '60px';
+            touchDragGhost.style.pointerEvents = 'none';
+            touchDragGhost.style.opacity = '0.7';
+            touchDragGhost.style.zIndex = '2000';
+            
+            const touch = e.touches[0];
+            touchDragGhost.style.left = `${touch.clientX - 30}px`;
+            touchDragGhost.style.top = `${touch.clientY - 30}px`;
+            
+            document.body.appendChild(touchDragGhost);
+        }
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+        if (isDraggingFromLibrary && touchDragGhost) {
+            const touch = e.touches[0];
+            touchDragGhost.style.left = `${touch.clientX - 30}px`;
+            touchDragGhost.style.top = `${touch.clientY - 30}px`;
+        }
+    });
+    
+    window.addEventListener('touchend', (e) => {
+        if (isDraggingFromLibrary && touchDragGhost) {
+            isDraggingFromLibrary = false;
+
+            const touch = e.changedTouches[0];
+            const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
+            
+            if (dropTarget && dropTarget.id === 'editor-canvas') {
+                const rect = dropTarget.getBoundingClientRect();
+                const pos = {
+                    x: touch.clientX - rect.left,
+                    y: touch.clientY - rect.top,
+                };
+                
+                 const newAsset = {
+                    ...dragData,
+                    id: `asset_${Date.now()}`,
+                    x: pos.x - 50, // center on cursor
+                    y: pos.y - 50,
+                    width: 100,
+                    height: 100,
+                    name: `${dragData.type} - ${dragData.prompt.substring(0, 15)}...`
+                };
+                addAssetToScene(newAsset);
+                redrawCanvas();
+            }
+
+            document.body.removeChild(touchDragGhost);
+            touchDragGhost = null;
+            dragData = null;
         }
     });
 
