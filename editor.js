@@ -72,7 +72,7 @@ export function initializeCanvas(canvasElement) {
 
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('mouseup', onMouseUp);
-    canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mousemove', onMouseDown);
     canvas.addEventListener('click', onClick);
     canvas.addEventListener('dragover', onDragOver);
     canvas.addEventListener('drop', onDrop);
@@ -95,7 +95,7 @@ export function initializeCanvas(canvasElement) {
     });
 }
 
-function setTool(tool) {
+export function setTool(tool) {
     activeTool = tool;
     document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById(`tool-${tool}`).classList.add('active');
